@@ -1,0 +1,176 @@
+---
+title: "Analysis for Coursera DataScience Machine Learning Final Project"
+author: "Charles"
+date: "September 12, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: [Link](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har) (see the section on the Weight Lifting Exercise Dataset).
+
+## Executive Summary
+This report focuses on building a machine learning model to predict the `classe` variable.
+Firstly it loads data from internet and cleans data to remove near zero variance variables and NA variables.
+Then it choses random forest method and set number of trees to be 500 to fit the model.
+After that the paper predicts using test dataset, estimates the out of sample error and shows the variable importance.
+
+## Set environment and load data
+```{r working dir, echo=FALSE}
+setwd("C:/Study/Coursera/1 Data-Science/2 RStudio/8 Class 8/Coursera_DataScience_Class8_MachineLearning")
+```
+
+```{r packages, warning=FALSE, message=FALSE}
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(randomForest)
+```
+Load the data:
+```{r load data, cache=TRUE}
+if (!file.exists("./Data")){
+        dir.create("./Data")
+}
+urlTrain <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+urlTest <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(urlTrain, destfile = "./Data/trainFP")
+download.file(urlTest, destfile = "./Data/testFP")
+training <- read.csv("./Data/trainFP")
+testing <- read.csv("./Data/testFP")
+```
+Have a general idea of the data:
+```{r have a look, R.options=list(max.print = 20)}
+str(training)
+```
+As we can see above, the training dataset has too many variables and lots of them are NA.
+So the first thing to do is to clean the data.
+
+## Clean the data
+Firstly remove the near zero variance variables that are not useful for our model:
+```{r near0var, cache=TRUE}
+near0Var <- nearZeroVar(training)
+training <- training[,-near0Var]
+dim(training)
+```
+
+Then remove the variables that are NAs and empty:
+```{r removeNA}
+processData <- function(data){
+        indexKeep <- !sapply(data, function(x) any(is.na(x)))
+        data <- data[,indexKeep]
+        indexKeep <- !sapply(data, function(x) any(x == ""))
+        data <- data[,indexKeep]
+        colNames <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", 
+                      "cvtd_timestamp", "new_window", "num_window")
+        indexCol <- which(names(data) %in% colNames)
+        data <- data[,-indexCol]
+        return(data)
+}
+training <- processData(training)
+dim(training)
+table(complete.cases(training))
+```
+As we can see, we removed all NA variables and reduce the number of variables to 53.
+Then do the same things to test dataset.
+
+```{r testset, cache=TRUE}
+near0Var2 <- nearZeroVar(testing)
+testing <- testing[,-near0Var2]
+testing <- processData(testing)
+dim(testing)
+```
+
+## Fit machine learning model
+### Data partition
+Firstly we do data partition:
+```{r data Partition}
+set.seed(20170917)
+inTrain <- createDataPartition(training$classe, p=0.8, list = FALSE)
+newTraining <- training[inTrain,]
+newTesting <- training[-inTrain,]
+dim(newTraining)
+dim(newTesting)
+```
+
+### Select model
+The goal of the model is to predict `classe` varibale, which is a factor.
+So we use the random forest model.
+The 500 number of trees seems to be a good trade off.
+Fit the model:
+
+```{r RF, cache=TRUE}
+modFitRF <- randomForest(classe ~., data = newTraining, ntree = 500)
+```
+
+Then predict the result using test dataset:
+```{r predict}
+predRF <- predict(modFitRF, newTesting)
+conMatrix1 <- confusionMatrix(predRF, newTesting$classe)
+conMatrix1
+```
+
+### Out of sample error
+The estimation of out-of-sample-error should be one minus the test set accuracy:
+```{r oose}
+OOSE <- 1 - conMatrix1$overall[1]
+OOSE
+```
+As we can see the out-of-sample-error is `r OOSE`.
+
+### Variable importance
+```{r varimp}
+varImp(modFitRF)
+varImpPlot(modFitRF)
+```
+
+
+
+## System information
+```{r system}
+Sys.info()[1:2]
+R.version.string
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
